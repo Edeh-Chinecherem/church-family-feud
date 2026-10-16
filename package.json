@@ -1,0 +1,9 @@
+{
+  "name": "church-family-feud",
+  "version": "2.0.0",
+  "description": "Live, turn-based Family Feud for church events. Teams answer, the audience's votes decide the points.",
+  "main": "server.js",
+  "scripts": { "start": "node server.js", "test": "node test.js" },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

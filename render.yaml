@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: church-family-feud
+    runtime: node
+    plan: free
+    buildCommand: "echo no build needed"
+    startCommand: "node server.js"
+    healthCheckPath: /healthz
+    envVars:
+      - key: HOST_PIN
+        sync: false   # Render will ask you for this value: choose a PIN only you know

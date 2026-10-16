@@ -1,0 +1,22 @@
+[
+  { "id": 1, "text": "Name something people do during the sermon besides listening.",
+    "options": ["Check their phone", "Sleep or nod off", "Doodle on the bulletin", "Whisper to a neighbor", "Check the time"] },
+  { "id": 2, "text": "Name a reason people arrive late to church.",
+    "options": ["Overslept", "Kids", "Traffic", "Couldn't find parking", "Couldn't find shoes"] },
+  { "id": 3, "text": "Name a famous Bible character kids love.",
+    "options": ["Noah", "David", "Jesus", "Moses", "Jonah"] },
+  { "id": 4, "text": "Name a food you'd expect at a church potluck.",
+    "options": ["Fried chicken", "Seafood okro", "Jollof rice", "Pasta salad", "Cake or dessert"] },
+  { "id": 5, "text": "Name a hymn or worship song everyone knows.",
+    "options": ["Amazing Grace", "How Great Thou Art", "Great Is Thy Faithfulness", "Oceans", "Blessed Assurance"] },
+  { "id": 6, "text": "Name something you would find in a church store.",
+    "options": ["Worker's tag", "Water", "Books", "FOH", "Sign-up sheet"] },
+  { "id": 7, "text": "Name something people say about the pastor's sermon length.",
+    "options": ["\"Too long\"", "\"Just right\"", "\"Felt like an hour\"", "\"Wish it were longer\"", "\"Great, but I was hungry\""] },
+  { "id": 8, "text": "Name a place in the church building besides the sanctuary.",
+    "options": ["Picture booth", "Vendor stand", "Restroom", "Parking lot", "Pastor's office"] },
+  { "id": 9, "text": "Name something people bring to church besides a Bible.",
+    "options": ["Phone", "Offering", "Handbag or purse", "Thinking cap", "Notebook"] },
+  { "id": 10, "text": "Name something that gets passed around in church.",
+    "options": ["Offering basket", "Compliments", "Side eyes", "Tissues", "Hugs"] }
+]

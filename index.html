@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Church Family Feud</title>
+<style>
+  :root{--bg:#1b1033;--card:#2a1a4d;--card2:#35225e;--gold:#ffc94d;--text:#f6f1ff;--muted:#b9aad9;--ok:#4ade80;--bad:#f87171;--line:#4a3680}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);padding:14px;max-width:760px;margin:auto}
+  h1{font-size:1.4rem;margin:.2rem 0;color:var(--gold)}
+  h2{font-size:1.05rem;margin:.2rem 0 .6rem}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+  .muted{color:var(--muted);font-size:.9rem}
+  button{font:inherit;border:0;border-radius:10px;padding:11px 14px;background:var(--gold);color:#2b1b00;font-weight:700;cursor:pointer}
+  button.sec{background:var(--card2);color:var(--text);border:1px solid var(--line)}
+  button.danger{background:#7f1d1d;color:#fff}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  input{font:inherit;width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:#150c28;color:var(--text);margin:6px 0}
+  .opt{display:block;width:100%;text-align:left;margin:6px 0;background:var(--card2);color:var(--text);border:1px solid var(--line);font-weight:500}
+  .opt.sel{background:var(--gold);color:#2b1b00;font-weight:700}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .score{display:flex;gap:10px}
+  .score>div{flex:1;text-align:center;background:var(--card2);border-radius:12px;padding:10px;border:1px solid var(--line)}
+  .score>div.turn{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+  .score b{display:block;font-size:2rem;color:var(--gold)}
+  .bar{position:relative;background:#150c28;border-radius:8px;margin:5px 0;overflow:hidden;border:1px solid var(--line)}
+  .bar i{position:absolute;inset:0 auto 0 0;background:#5b3fa8;opacity:.75}
+  .bar.pick i{background:var(--ok);opacity:.55}
+  .bar span{position:relative;display:flex;justify-content:space-between;padding:8px 10px;gap:8px}
+  .tag{display:inline-block;padding:2px 9px;border-radius:99px;background:var(--card2);border:1px solid var(--line);font-size:.8rem;color:var(--muted)}
+  .pts{color:var(--ok);font-weight:800}
+  .banner{background:var(--card2);border-left:4px solid var(--gold);padding:10px 12px;border-radius:8px;margin:10px 0}
+  .big{font-size:1.1rem}
+  .err{color:var(--bad);min-height:1.2em}
+</style>
+</head>
+<body>
+<h1>⛪ Church Family Feud</h1>
+<div id="app"></div>
+<script>
+let token = null, S = null, es = null;
+try { token = localStorage.getItem('cff_token'); } catch(e){}
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const setTok = t => { token=t; try{ t ? localStorage.setItem('cff_token',t) : localStorage.removeItem('cff_token'); }catch(e){} };
+
+async function api(path, data){
+  try{
+    const r = await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({token},data))});
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||'Error');
+    return j;
+  }catch(e){ alert(e.message); return null; }
+}
+function connect(){
+  if(es) es.close();
+  es = new EventSource('/events?token='+token);
+  es.onmessage = e => { S = JSON.parse(e.data); render(); };
+  es.addEventListener('invalid', () => { setTok(null); es.close(); S=null; renderJoin(); });
+}
+
+/* ---------- join ---------- */
+function renderJoin(msg){
+  $('app').innerHTML = `
+  <div class="card"><h2>Join the game</h2>
+    <input id="nm" placeholder="Your name (or team name)" maxlength="40">
+    <div class="err" id="err">${msg||''}</div>
+    <div class="row">
+      <button onclick="join('audience')">I'm in the audience</button>
+      <button class="sec" onclick="join('team')">Register as a team</button>
+    </div>
+    <p class="muted">Only 2 teams compete. Everyone else is audience and decides the points.</p>
+  </div>
+  <div class="card"><h2>Host</h2>
+    <input id="pin" type="password" inputmode="numeric" placeholder="Host PIN">
+    <button class="sec" onclick="hostLogin()">Enter as host</button>
+  </div>`;
+}
+async function join(role){
+  const name = $('nm').value.trim();
+  if(!name){ $('err').textContent='Please type a name.'; return; }
+  const r = await fetch('/api/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role,name})});
+  const j = await r.json();
+  if(!r.ok){ $('err').textContent=j.error; return; }
+  setTok(j.token); connect();
+}
+async function hostLogin(){
+  const r = await fetch('/api/host',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:$('pin').value})});
+  const j = await r.json();
+  if(!r.ok){ alert(j.error); return; }
+  setTok(j.token); connect();
+}
+function leave(){ setTok(null); if(es)es.close(); S=null; renderJoin(); }
+
+/* ---------- shared bits ---------- */
+const names = () => ({A:S.teamNames.A||'Team A', B:S.teamNames.B||'Team B'});
+const qOf = id => S.questions.find(q=>q.id===id);
+function scoreboard(){
+  const n=names(), t = S.current ? S.current.team : null;
+  return `<div class="card"><h2>Scoreboard</h2><div class="score">
+    <div class="${t==='A'?'turn':''}"><span class="muted">${esc(n.A)}</span><b>${S.scores.A}</b></div>
+    <div class="${t==='B'?'turn':''}"><span class="muted">${esc(n.B)}</span><b>${S.scores.B}</b></div></div></div>`;
+}
+function turnBanner(){
+  const n=names();
+  if(S.phase==='lobby') return `<div class="banner"><b>Waiting for the host to start…</b></div>`;
+  if(S.phase==='done') return `<div class="banner"><b>🎉 Game over!</b></div>`;
+  const steps = {voting:'Audience: drop your answers now!', answering:'Voting closed. The team is answering…', revealed:'Result is in!'};
+  return `<div class="banner"><b>Turn ${S.turn+1} of ${S.total} · ${esc(n[S.current.team])}'s turn</b><br><span class="muted">${steps[S.turnPhase]}</span></div>`;
+}
+function resultBlock(q){
+  const r = S.results[q.id], n = names();
+  const total = r.counts.reduce((a,b)=>a+b,0) || 1;
+  const bars = q.options.map((o,i)=>`<div class="bar ${i===r.opt?'pick':''}"><i style="width:${r.counts[i]/total*100}%"></i><span><span>${esc(o)}${i===r.opt?' ✅':''}</span><b>${r.counts[i]}</b></span></div>`).join('');
+  return `<p><b>${esc(n[r.team])}</b> answered <b>${esc(q.options[r.opt])}</b> → <span class="pts">+${r.points} pts</span></p>${bars}`;
+}
+function pastResults(excludeQid){
+  const ids = Object.keys(S.results).map(Number).filter(id=>id!==excludeQid).sort((a,b)=>S.results[b].turn-S.results[a].turn);
+  if(!ids.length) return '';
+  return `<h2 style="margin-top:18px">Earlier turns</h2>` + ids.map(id=>{
+    const q=qOf(id);
+    return `<div class="card"><div class="row"><span class="tag">Turn ${S.results[id].turn+1}</span><b>${esc(q.text)}</b></div>${resultBlock(q)}</div>`;
+  }).join('');
+}
+
+/* ---------- audience ---------- */
+function renderAudience(){
+  let h = turnBanner() + scoreboard();
+  if(S.phase==='playing'){
+    const q = qOf(S.current.qid);
+    h += `<div class="card"><div class="row"><span class="tag">Turn ${S.turn+1}</span><b class="big">${esc(q.text)}</b></div>`;
+    if(S.turnPhase==='revealed'){ h += resultBlock(q); }
+    else{
+      const mine = S.myVotes[q.id];
+      if(S.turnPhase==='voting') h += `<p class="muted">Pick the answer you think people would say. It's final once you tap.</p>`;
+      q.options.forEach((o,i)=>{
+        const sel = mine===i, dis = S.turnPhase!=='voting' || mine!==undefined;
+        h += `<button class="opt ${sel?'sel':''}" ${dis?'disabled':''} onclick="vote(${q.id},${i})">${esc(o)}${sel?' ✔':''}</button>`;
+      });
+      if(mine!==undefined) h += `<span class="muted">Your answer is locked in. The result shows after the team answers.</span>`;
+      else if(S.turnPhase==='answering') h += `<span class="muted">Voting is closed for this turn.</span>`;
+    }
+    h += `</div>`;
+  }
+  return h + pastResults(S.phase==='playing' ? S.current.qid : null);
+}
+async function vote(qid,opt){ await api('/api/vote',{qid,opt}); }
+
+/* ---------- team ---------- */
+function renderTeam(){
+  const n=names()[S.slot];
+  let h = `<div class="banner"><b>${esc(n)}</b> (${S.slot==='A'?'Team A':'Team B'})</div>`;
+  if(S.phase==='lobby') return h+`<div class="card">You're registered. Waiting for the host to shuffle and start the game…</div>`;
+  if(S.phase==='done') return h+`<div class="card big">🎉 Game over! Look to the host for the final scores.</div>`;
+  h += `<p class="muted">Turn ${S.turn+1} of ${S.total}</p>`;
+  if(!S.myTurn) return h+`<div class="card big">It's the other team's turn. Get ready for yours! 👀</div>`;
+  const q = S.questions[0], a = S.myAnswer;
+  h += `<div class="card"><b class="big">${esc(q.text)}</b>`;
+  if(a===null && S.turnPhase==='voting') h += `<p class="muted">The audience is voting. Your options unlock when the host closes voting.</p>`;
+  if(a===null && S.turnPhase==='answering') h += `<p class="pts">Voting is closed. Pick your answer!</p>`;
+  q.options.forEach((o,i)=>{
+    const sel=a===i, dis = S.turnPhase!=='answering' || a!==null;
+    h += `<button class="opt ${sel?'sel':''}" ${dis?'disabled':''} onclick="answer(${q.id},${i})">${esc(o)}${sel?' 🔒':''}</button>`;
+  });
+  if(a!==null) h += `<span class="muted">Locked in. Watch the big screen for your points!</span>`;
+  return h+`</div>`;
+}
+async function answer(qid,opt){
+  const q=S.questions.find(x=>x.id===qid);
+  if(!confirm('Lock in "'+q.options[opt]+'"? This cannot be changed.')) return;
+  await api('/api/answer',{qid,opt});
+}
+
+/* ---------- host ---------- */
+function renderHost(){
+  const n=names(), c=S.current, tp=S.turnPhase, p=S.phase;
+  let h = turnBanner().replace('class="banner"','class="banner"') + `<p class="muted">${S.audienceCount} in audience · Share this link: <b>${esc(location.origin)}</b></p>`;
+  h += `<div class="card"><h2>Teams</h2>
+    ${['A','B'].map(s=>`<div class="row" style="justify-content:space-between;margin:6px 0"><span>${s}: <b>${S.teamNames[s]?esc(S.teamNames[s]):'<i class="muted">waiting…</i>'}</b></span>${S.teamNames[s]&&p==='lobby'?`<button class="sec" onclick="act('removeTeam',{slot:'${s}'})">Remove</button>`:''}</div>`).join('')}
+  </div>`;
+  h += `<div class="card"><h2>Controls</h2><div class="row">`;
+  if(p==='lobby') h += `<button onclick="act('shuffle')">🔀 ${S.shuffled?'Reshuffle':'Shuffle'} questions (5 each)</button>
+    <button onclick="act('start')" ${S.shuffled?'':'disabled'}>▶ Start game</button>`;
+  if(p==='playing') h += `
+    <button onclick="act('closeVoting')" ${tp==='voting'?'':'disabled'}>⏹ Close voting · team answers</button>
+    <button class="sec" onclick="act('reopenVoting')" ${tp==='answering'?'':'disabled'}>↩ Reopen voting</button>
+    <button onclick="act('nextTurn')" ${tp==='revealed'?'':'disabled'}>${S.turn>=S.total-1?'🏁 Finish game':'⏭ Next turn'}</button>`;
+  h += `<button class="danger" onclick="if(confirm('Reset everything?'))act('reset')">Reset game</button></div>
+    <p class="muted">Each turn: audience votes → you close voting → the team answers → points appear for you and the audience → next turn.</p></div>`;
+  h += scoreboard();
+  if(p==='playing'){
+    const q = qOf(c.qid), cnt=S.liveCounts[q.id], tot=cnt.reduce((a,b)=>a+b,0)||1;
+    h += `<div class="card"><div class="row"><span class="tag">Turn ${S.turn+1} · ${esc(n[c.team])}</span><b class="big">${esc(q.text)}</b></div>`;
+    if(S.results[q.id]) h += resultBlock(q);
+    else h += `<div class="muted">Live audience votes (host only) · ${S.voterCounts[q.id]} voted</div>` +
+      q.options.map((o,i)=>`<div class="bar"><i style="width:${cnt[i]/tot*100}%"></i><span><span>${esc(o)}</span><b>${cnt[i]}</b></span></div>`).join('');
+    h += `</div>`;
+  }
+  if(S.schedule.length){
+    h += `<div class="card"><h2>Turn order</h2>` + S.schedule.map(s=>{
+      const done = S.results[s.qid], now = p==='playing' && s.turn===S.turn;
+      return `<div class="row" style="margin:4px 0"><span class="tag">${s.turn+1}</span><span class="tag">${esc(n[s.team])}</span><span style="${now?'color:var(--gold);font-weight:700':''}">${esc(qOf(s.qid).text)}</span>${done?`<span class="pts">+${done.points}</span>`:''}</div>`;
+    }).join('') + `</div>`;
+  }
+  return h + pastResults(p==='playing' ? c.qid : null);
+}
+async function act(action,extra){ await api('/api/host/action',Object.assign({action},extra||{})); }
+
+/* ---------- main ---------- */
+function render(){
+  if(!S) return;
+  const y = window.scrollY;
+  const body = S.role==='host'?renderHost():S.role==='team'?renderTeam():renderAudience();
+  $('app').innerHTML = body + `<p class="muted" style="text-align:center"><a href="#" style="color:var(--muted)" onclick="leave();return false">Leave / switch role</a></p>`;
+  window.scrollTo(0,y);
+}
+token ? connect() : renderJoin();
+</script>
+</body>
+</html>
